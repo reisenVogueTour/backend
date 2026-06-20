@@ -220,6 +220,8 @@ export async function updateExperience(
       | "description"
       | "destination"
       | "category"
+      | "eventDate"
+      | "numberOfDays"
       | "price"
       | "currency"
       | "duration"

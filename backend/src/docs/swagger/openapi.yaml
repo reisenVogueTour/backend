@@ -27,7 +27,9 @@ tags:
   - name: Saved Experiences
     description: Customer wishlist / saved experiences
   - name: Providers
-    description: Experience provider profiles and listings
+    description: Provider applications, dashboards, and public profiles
+  - name: Admin
+    description: Admin dashboard and provider application review
   - name: Users
     description: Customer dashboard
 
@@ -504,10 +506,13 @@ paths:
                     type: string
                     example: Experience removed from saved list
 
-  /api/providers:
+  /api/providers/application:
     post:
       tags: [Providers]
-      summary: Create a provider business profile
+      summary: Submit a provider application with CAC and company details
+      description: |
+        Register as a provider user first, then submit company details including CAC number.
+        Application status starts as `pending` until an admin approves or rejects it.
       security:
         - bearerAuth: []
       requestBody:
@@ -515,10 +520,37 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateProviderRequest"
+              $ref: "#/components/schemas/CreateProviderApplicationRequest"
       responses:
         "201":
-          description: Provider profile created
+          description: Provider application submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "409":
+          description: Provider application already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/providers/me/dashboard:
+    get:
+      tags: [Providers]
+      summary: Provider dashboard with application status, experiences, and bookings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Provider dashboard data
           content:
             application/json:
               schema:
@@ -527,13 +559,28 @@ paths:
                   success:
                     type: boolean
                   data:
-                    $ref: "#/components/schemas/Provider"
-        "409":
-          description: Provider profile already exists
+                    $ref: "#/components/schemas/ProviderDashboardResponse"
+
+  /api/providers/me/experiences:
+    get:
+      tags: [Providers]
+      summary: List all experiences owned by the authenticated provider
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Provider-owned experiences including drafts
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedExperiences"
 
   /api/providers/me:
     get:
@@ -573,7 +620,7 @@ paths:
                   success:
                     type: boolean
                   data:
-                    $ref: "#/components/schemas/Provider"
+                    $ref: "#/components/schemas/PublicProvider"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -596,6 +643,107 @@ paths:
                     type: boolean
                   data:
                     $ref: "#/components/schemas/PaginatedExperiences"
+
+  /api/admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Admin dashboard overview
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Admin dashboard stats and recent pending applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/AdminDashboardResponse"
+
+  /api/admin/providers/applications:
+    get:
+      tags: [Admin]
+      summary: List provider signup applications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProviderApplicationStatus"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+      responses:
+        "200":
+          description: Paginated provider applications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedProviders"
+
+  /api/admin/providers/applications/{providerId}:
+    get:
+      tags: [Admin]
+      summary: Get a provider application detail including CAC info
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/providerId"
+      responses:
+        "200":
+          description: Provider application detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/providers/applications/{providerId}/review:
+    patch:
+      tags: [Admin]
+      summary: Approve or reject a provider application
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/providerId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewProviderApplicationRequest"
+      responses:
+        "200":
+          description: Application reviewed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "409":
+          description: Application was already reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/users/me/dashboard:
     get:
@@ -862,6 +1010,14 @@ components:
           type: string
         category:
           $ref: "#/components/schemas/ExperienceCategory"
+        eventDate:
+          type: string
+          format: date-time
+          description: When the experience or event takes place
+        numberOfDays:
+          type: integer
+          minimum: 1
+          description: Duration of the experience in days
         price:
           type: number
         currency:
@@ -869,7 +1025,7 @@ components:
           example: NGN
         duration:
           type: string
-          example: 3 hours
+          example: 3 days
         maxGroupSize:
           type: integer
         images:
@@ -895,8 +1051,9 @@ components:
         - description
         - destination
         - category
+        - eventDate
+        - numberOfDays
         - price
-        - duration
         - maxGroupSize
       properties:
         title:
@@ -909,6 +1066,13 @@ components:
           type: string
         category:
           $ref: "#/components/schemas/ExperienceCategory"
+          description: Event or experience type
+        eventDate:
+          type: string
+          format: date-time
+        numberOfDays:
+          type: integer
+          minimum: 1
         price:
           type: number
           minimum: 0
@@ -917,6 +1081,7 @@ components:
           default: NGN
         duration:
           type: string
+          description: Optional display label; defaults to numberOfDays
         maxGroupSize:
           type: integer
           minimum: 1
@@ -1108,6 +1273,10 @@ components:
           type: string
           format: date-time
 
+    ProviderApplicationStatus:
+      type: string
+      enum: [pending, approved, rejected]
+
     Provider:
       type: object
       properties:
@@ -1123,8 +1292,29 @@ components:
           type: string
         location:
           type: string
-        verified:
-          type: boolean
+        businessAddress:
+          type: string
+        companyEmail:
+          type: string
+          format: email
+        companyPhone:
+          type: string
+        cacNumber:
+          type: string
+          description: Corporate Affairs Commission registration number
+        cacDocumentUrl:
+          type: string
+          format: uri
+        applicationStatus:
+          $ref: "#/components/schemas/ProviderApplicationStatus"
+        rejectionReason:
+          type: string
+        reviewedBy:
+          type: string
+          format: uuid
+        reviewedAt:
+          type: string
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1132,9 +1322,123 @@ components:
           type: string
           format: date-time
 
-    CreateProviderRequest:
+    PublicProvider:
       type: object
-      required: [businessName, description, location]
+      properties:
+        providerId:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateProviderApplicationRequest:
+      type: object
+      required:
+        - businessName
+        - description
+        - location
+        - businessAddress
+        - companyEmail
+        - companyPhone
+        - cacNumber
+      properties:
+        businessName:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        businessAddress:
+          type: string
+        companyEmail:
+          type: string
+          format: email
+        companyPhone:
+          type: string
+        cacNumber:
+          type: string
+        cacDocumentUrl:
+          type: string
+          format: uri
+
+    ReviewProviderApplicationRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        rejectionReason:
+          type: string
+          description: Required when status is rejected
+
+    PaginatedProviders:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Provider"
+        nextCursor:
+          type: string
+
+    ProviderDashboardResponse:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/Provider"
+        applicationStatus:
+          $ref: "#/components/schemas/ProviderApplicationStatus"
+        canManageExperiences:
+          type: boolean
+        experiences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        recentBookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        stats:
+          type: object
+          properties:
+            totalExperiences:
+              type: integer
+            publishedExperiences:
+              type: integer
+            draftExperiences:
+              type: integer
+            pendingBookings:
+              type: integer
+
+    AdminDashboardResponse:
+      type: object
+      properties:
+        stats:
+          type: object
+          properties:
+            pendingApplications:
+              type: integer
+            approvedProviders:
+              type: integer
+            rejectedApplications:
+              type: integer
+        recentPendingApplications:
+          type: array
+          items:
+            $ref: "#/components/schemas/Provider"
+
+    CreateProviderRequest:
+      deprecated: true
+      description: Use CreateProviderApplicationRequest via POST /api/providers/application
+      type: object
       properties:
         businessName:
           type: string

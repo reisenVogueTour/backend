@@ -34,8 +34,9 @@ Express + TypeScript REST API for the **Tours Connect** hackathon MVP. The platf
 | **Destinations** | Featured & browsable destinations for the homepage |
 | **Saved** | Wishlist — save / remove experiences |
 | **Bookings** | Create booking requests; providers update status |
-| **Providers** | Business profiles linked to user accounts |
-| **Dashboard** | Customer view of recent bookings + saved experiences |
+| **Providers** | Application with CAC details, admin approval workflow, provider dashboard |
+| **Admin** | Review/approve/reject provider applications, admin dashboard |
+| **Dashboards** | Customer, provider, and admin dashboards |
 
 Post-hackathon items (payments, reviews, AI recommendations, etc.) are out of scope for this API version.
 
@@ -80,12 +81,13 @@ backend/
 │   │
 │   ├── routes/                # HTTP route handlers (no Swagger docs here)
 │   │   ├── index.ts           # Aggregates all /api/* routers
+│   │   ├── admin.ts           # Admin dashboard & provider application review
 │   │   ├── auth.ts
 │   │   ├── experiences.ts
 │   │   ├── destinations.ts
 │   │   ├── bookings.ts
 │   │   ├── saved.ts
-│   │   ├── providers.ts
+│   │   ├── providers.ts       # Provider application & provider dashboard
 │   │   └── users.ts
 │   │
 │   ├── types/
@@ -93,7 +95,8 @@ backend/
 │   │
 │   ├── utils/
 │   │   ├── auth.ts            # Password hashing, JWT sign/verify
-│   │   └── errors.ts          # AppError class
+│   │   ├── errors.ts          # AppError class
+│   │   └── provider.ts        # Provider approval helpers
 │   │
 │   └── validators/
 │       └── schemas.ts         # Zod request validation schemas
@@ -208,13 +211,13 @@ aws dynamodb create-table \
 | Booking | `BOOKING#<id>` | `METADATA` | Booking request |
 | Saved experience | `USER#<userId>` | `SAVED#<experienceId>` | Wishlist item |
 | Destination | `DESTINATION#<slug>` | `METADATA` | Destination guide |
-| Provider | `PROVIDER#<id>` | `PROFILE` | Provider business profile |
+| Provider | `PROVIDER#<id>` | `PROFILE` | Provider business profile & application |
 
 ### Index usage
 
 | Index | Used for |
 |-------|----------|
-| **GSI1** | Listing experiences (all / featured), listing destinations |
+| **GSI1** | Listing experiences (all / featured), listing destinations, **provider applications by status** |
 | **GSI2** | Experiences filtered by destination slug |
 | **GSI3** | Experiences by provider; bookings by user; provider lookup by user |
 | **GSI4** | Bookings by provider |
@@ -348,11 +351,67 @@ Both return:
 
 | Role | Access |
 |------|--------|
-| `customer` | Browse, save experiences, create bookings, dashboard |
-| `provider` | All customer access + manage own listings & booking statuses |
-| `admin` | Full access including destination creation |
+| `customer` | Browse, save experiences, create bookings, customer dashboard |
+| `provider` | Submit provider application (CAC + company details), provider dashboard; after **approval** can create/manage experiences and booking statuses |
+| `admin` | Review provider applications, admin dashboard, destination creation |
 
-Register with `"role": "provider"` to create a provider account, then call `POST /api/providers` to set up the business profile before listing experiences.
+### Provider onboarding flow
+
+1. **Register** with `"role": "provider"`.
+2. **Submit application** at `POST /api/providers/application` with CAC number, company email/phone, address, etc.
+3. Application status is **`pending`** until an admin reviews it.
+4. **Admin approves or rejects** via `PATCH /api/admin/providers/applications/:providerId/review`.
+5. Once **`approved`**, the provider can create experiences (`POST /api/experiences`) with event date, type, number of days, price, etc.
+6. Track progress on the **provider dashboard** at `GET /api/providers/me/dashboard`.
+
+```bash
+# 1. Register as provider
+curl -X POST http://localhost:5000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "provider@example.com",
+    "password": "password123",
+    "firstName": "Tunde",
+    "lastName": "Okoro",
+    "role": "provider"
+  }'
+
+# 2. Submit application (use token from register response)
+curl -X POST http://localhost:5000/api/providers/application \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "businessName": "Lagos Adventure Co",
+    "description": "Curated adventure tours across Lagos and beyond",
+    "location": "Lagos",
+    "businessAddress": "12 Admiralty Way, Lekki, Lagos",
+    "companyEmail": "hello@lagosadventure.com",
+    "companyPhone": "+2348012345678",
+    "cacNumber": "RC1234567",
+    "cacDocumentUrl": "https://example.com/cac-certificate.pdf"
+  }'
+```
+
+### Admin review example
+
+```bash
+# Approve
+curl -X PATCH http://localhost:5000/api/admin/providers/applications/<providerId>/review \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{"status": "approved"}'
+
+# Reject (reason required)
+curl -X PATCH http://localhost:5000/api/admin/providers/applications/<providerId>/review \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin-token>" \
+  -d '{
+    "status": "rejected",
+    "rejectionReason": "CAC number could not be verified"
+  }'
+```
+
+> **Note:** Admin users must be created directly in the database for now (register with `role: "admin"` is restricted to customer/provider at signup). For local testing, manually set a user's role to `admin` in DynamoDB or extend registration in a future iteration.
 
 ---
 
@@ -389,8 +448,34 @@ Base URL: `http://localhost:5000`
 | `GET` | `/` | No | — | Browse/search published experiences |
 | `GET` | `/featured` | No | — | Homepage featured experiences |
 | `GET` | `/:experienceId` | No | — | Experience detail page |
-| `POST` | `/` | Yes | provider, admin | Create a new listing |
-| `PATCH` | `/:experienceId` | Yes | provider, admin | Update a listing |
+| `POST` | `/` | Yes | provider*, admin | Create a new listing (*requires approved application) |
+| `PATCH` | `/:experienceId` | Yes | provider*, admin | Update a listing |
+
+**Create experience body (approved providers only):**
+
+```json
+{
+  "title": "Lekki Conservation Canopy Walk",
+  "description": "Guided nature walk through the mangrove canopy",
+  "destination": "Lagos",
+  "category": "adventure",
+  "eventDate": "2026-08-10T09:00:00.000Z",
+  "numberOfDays": 1,
+  "price": 25000,
+  "currency": "NGN",
+  "maxGroupSize": 15,
+  "images": ["https://example.com/image.jpg"],
+  "status": "draft"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `category` | Event/experience type (`adventure`, `cultural`, `nightlife`, etc.) |
+| `eventDate` | When the experience takes place |
+| `numberOfDays` | Duration in days |
+| `price` | Price per person in NGN |
+| `status` | `draft` or `published` |
 
 **Query parameters for `GET /`:**
 
@@ -455,10 +540,33 @@ Base URL: `http://localhost:5000`
 
 | Method | Path | Auth | Role | Description |
 |--------|------|------|------|-------------|
-| `POST` | `/` | Yes | provider, admin | Create provider business profile |
-| `GET` | `/me` | Yes | provider, admin | Get own provider profile |
-| `GET` | `/:providerId` | No | — | Public provider profile |
-| `GET` | `/:providerId/experiences` | No | — | Provider's published experiences |
+| `POST` | `/application` | Yes | provider | Submit provider application with CAC & company details |
+| `GET` | `/me` | Yes | provider, admin | Get own provider profile & application status |
+| `GET` | `/me/dashboard` | Yes | provider, admin | Provider dashboard — status, experiences, bookings, stats |
+| `GET` | `/me/experiences` | Yes | provider, admin | All own experiences (drafts + published) |
+| `GET` | `/:providerId` | No | — | Public profile (**approved providers only**) |
+| `GET` | `/:providerId/experiences` | No | — | Published experiences for an approved provider |
+
+**Provider application statuses:** `pending` → `approved` | `rejected`
+
+---
+
+### Admin — `/api/admin`
+
+| Method | Path | Auth | Role | Description |
+|--------|------|------|------|-------------|
+| `GET` | `/dashboard` | Yes | admin | Admin dashboard — application counts & recent pending |
+| `GET` | `/providers/applications` | Yes | admin | List provider applications (filter by `status`) |
+| `GET` | `/providers/applications/:providerId` | Yes | admin | Full application detail including CAC |
+| `PATCH` | `/providers/applications/:providerId/review` | Yes | admin | Approve or reject an application |
+
+**Query parameters for `GET /providers/applications`:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | string | `pending`, `approved`, or `rejected` (defaults to `pending`) |
+| `limit` | integer | Page size (max 50) |
+| `cursor` | string | Pagination cursor |
 
 ---
 
@@ -524,17 +632,29 @@ Pass `nextCursor` as the `cursor` query param to fetch the next page.
 - **Swagger separation** — OpenAPI spec is maintained in `src/docs/swagger/openapi.yaml`, not inline in route files.
 - **No payment processing** — bookings are requests only (MVP scope); payment integration is post-hackathon.
 
+### Typical provider flow
+
+```
+Register (role: provider) → POST /api/providers/application → wait for admin approval
+→ GET /api/providers/me/dashboard → POST /api/experiences → manage bookings
+```
+
+### Typical admin flow
+
+```
+GET /api/admin/dashboard → GET /api/admin/providers/applications
+→ PATCH .../review (approve/reject)
+```
+
 ### Typical customer flow
 
 ```
 Register → Browse /api/experiences → Save favourites → POST /api/bookings → GET /api/users/me/dashboard
 ```
 
-### Typical provider flow
+### Provider application gate
 
-```
-Register (role: provider) → POST /api/providers → POST /api/experiences → PATCH booking statuses
-```
+Providers cannot create or publish experiences until `applicationStatus` is **`approved`**. Pending and rejected providers receive a `403` with a descriptive message.
 
 ---
 

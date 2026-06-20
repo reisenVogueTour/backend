@@ -1,4 +1,5 @@
 import { Router } from "express";
+import adminRoutes from "./admin";
 import authRoutes from "./auth";
 import bookingRoutes from "./bookings";
 import destinationRoutes from "./destinations";
@@ -17,6 +18,7 @@ router.get("/", (_req, res) => {
   });
 });
 
+router.use("/admin", adminRoutes);
 router.use("/auth", authRoutes);
 router.use("/experiences", experienceRoutes);
 router.use("/destinations", destinationRoutes);

@@ -14,6 +14,7 @@ import {
 } from "../repositories/experienceRepository";
 import { getProviderByUserId } from "../repositories/providerRepository";
 import { AppError } from "../utils/errors";
+import { requireApprovedProvider } from "../utils/provider";
 import {
   createExperienceSchema,
   experienceQuerySchema,
@@ -21,6 +22,10 @@ import {
 } from "../validators/schemas";
 
 const router = Router();
+
+function buildDuration(numberOfDays: number, duration?: string): string {
+  return duration ?? `${numberOfDays} day${numberOfDays === 1 ? "" : "s"}`;
+}
 
 router.get("/", validateQuery(experienceQuerySchema), async (req, res, next) => {
   try {
@@ -71,18 +76,17 @@ router.post(
   validateBody(createExperienceSchema),
   async (req: AuthenticatedRequest, res, next) => {
     try {
-      const provider = await getProviderByUserId(req.user!.userId);
+      const provider = requireApprovedProvider(
+        await getProviderByUserId(req.user!.userId),
+      );
 
-      if (!provider) {
-        throw new AppError(
-          403,
-          "Create a provider profile before listing experiences",
-        );
-      }
+      const { duration, numberOfDays, ...rest } = req.body;
 
       const experience = await createExperience({
         providerId: provider.providerId,
-        ...req.body,
+        ...rest,
+        numberOfDays,
+        duration: buildDuration(numberOfDays, duration),
       });
 
       res.status(201).json({ success: true, data: experience });
@@ -106,16 +110,34 @@ router.patch(
       }
 
       if (req.user!.role !== "admin") {
-        const provider = await getProviderByUserId(req.user!.userId);
+        const provider = requireApprovedProvider(
+          await getProviderByUserId(req.user!.userId),
+        );
 
-        if (!provider || provider.providerId !== existing.providerId) {
+        if (provider.providerId !== existing.providerId) {
           throw new AppError(403, "You can only update your own listings");
         }
       }
 
+      const { duration, numberOfDays, ...rest } = req.body;
+      const updates = {
+        ...rest,
+        ...(numberOfDays !== undefined
+          ? {
+              numberOfDays,
+              duration: buildDuration(
+                numberOfDays,
+                duration ?? existing.duration,
+              ),
+            }
+          : duration !== undefined
+            ? { duration }
+            : {}),
+      };
+
       const experience = await updateExperience(
         req.params.experienceId as string,
-        req.body,
+        updates,
       );
 
       res.json({ success: true, data: experience });

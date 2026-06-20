@@ -44,6 +44,8 @@ export interface Experience {
   destination: string;
   destinationSlug: string;
   category: ExperienceCategory;
+  eventDate: string;
+  numberOfDays: number;
   price: number;
   currency: string;
   duration: string;
@@ -88,15 +90,33 @@ export interface SavedExperience {
   savedAt: string;
 }
 
+export type ProviderApplicationStatus = "pending" | "approved" | "rejected";
+
 export interface Provider {
   providerId: string;
   userId: string;
   businessName: string;
   description: string;
   location: string;
-  verified: boolean;
+  businessAddress: string;
+  companyEmail: string;
+  companyPhone: string;
+  cacNumber: string;
+  cacDocumentUrl?: string;
+  applicationStatus: ProviderApplicationStatus;
+  rejectionReason?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicProvider {
+  providerId: string;
+  businessName: string;
+  description: string;
+  location: string;
+  createdAt: string;
 }
 
 export interface AuthTokenPayload {
