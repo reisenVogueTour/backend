@@ -1,0 +1,116 @@
+export type UserRole = "customer" | "provider" | "admin";
+
+export type ExperienceCategory =
+  | "adventure"
+  | "relaxation"
+  | "nightlife"
+  | "cultural"
+  | "wildlife"
+  | "water_sports"
+  | "romantic"
+  | "family_friendly";
+
+export type ExperienceStatus = "draft" | "published" | "archived";
+
+export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
+
+export interface User {
+  userId: string;
+  email: string;
+  passwordHash: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  phone?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicUser {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
+  phone?: string;
+  createdAt: string;
+}
+
+export interface Experience {
+  experienceId: string;
+  providerId: string;
+  title: string;
+  description: string;
+  destination: string;
+  destinationSlug: string;
+  category: ExperienceCategory;
+  price: number;
+  currency: string;
+  duration: string;
+  maxGroupSize: number;
+  images: string[];
+  featured: boolean;
+  status: ExperienceStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Destination {
+  destinationSlug: string;
+  name: string;
+  state: string;
+  description: string;
+  imageUrl: string;
+  featured: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Booking {
+  bookingId: string;
+  userId: string;
+  experienceId: string;
+  experienceTitle: string;
+  providerId: string;
+  requestedDate: string;
+  groupSize: number;
+  totalPrice: number;
+  currency: string;
+  status: BookingStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedExperience {
+  userId: string;
+  experienceId: string;
+  savedAt: string;
+}
+
+export interface Provider {
+  providerId: string;
+  userId: string;
+  businessName: string;
+  description: string;
+  location: string;
+  verified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuthTokenPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface PaginationQuery {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  nextCursor?: string | undefined;
+}

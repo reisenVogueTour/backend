@@ -1,0 +1,1163 @@
+openapi: 3.0.3
+info:
+  title: Tours Connect API
+  description: |
+    Hackathon MVP API for Tours Connect — an AI-powered tourism marketplace.
+    Supports customer discovery, saved experiences, booking requests, and provider listings.
+    Data is stored in AWS DynamoDB.
+  version: 1.0.0
+  contact:
+    name: Tours Connect
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+
+tags:
+  - name: Health
+    description: Service health checks
+  - name: Auth
+    description: Registration, login, and session
+  - name: Experiences
+    description: Browse, search, and manage experience listings
+  - name: Destinations
+    description: Featured and browsable destinations
+  - name: Bookings
+    description: Booking requests and status updates
+  - name: Saved Experiences
+    description: Customer wishlist / saved experiences
+  - name: Providers
+    description: Experience provider profiles and listings
+  - name: Users
+    description: Customer dashboard
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new customer or provider account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get the authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/PublicUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/experiences:
+    get:
+      tags: [Experiences]
+      summary: Browse and search published experiences
+      parameters:
+        - $ref: "#/components/parameters/destination"
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/search"
+        - $ref: "#/components/parameters/featured"
+        - $ref: "#/components/parameters/minPrice"
+        - $ref: "#/components/parameters/maxPrice"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+      responses:
+        "200":
+          description: Paginated list of experiences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedExperiences"
+    post:
+      tags: [Experiences]
+      summary: Create a new experience listing (provider only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExperienceRequest"
+      responses:
+        "201":
+          description: Experience created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Experience"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/experiences/featured:
+    get:
+      tags: [Experiences]
+      summary: Get featured experiences for the homepage
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 20
+      responses:
+        "200":
+          description: Featured experiences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Experience"
+
+  /api/experiences/{experienceId}:
+    get:
+      tags: [Experiences]
+      summary: Get experience details
+      parameters:
+        - $ref: "#/components/parameters/experienceId"
+      responses:
+        "200":
+          description: Experience details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Experience"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Experiences]
+      summary: Update an experience listing (owner provider or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/experienceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExperienceRequest"
+      responses:
+        "200":
+          description: Experience updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Experience"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/destinations:
+    get:
+      tags: [Destinations]
+      summary: List destinations
+      parameters:
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+      responses:
+        "200":
+          description: Paginated destinations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedDestinations"
+    post:
+      tags: [Destinations]
+      summary: Create a destination (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDestinationRequest"
+      responses:
+        "201":
+          description: Destination created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Destination"
+
+  /api/destinations/featured:
+    get:
+      tags: [Destinations]
+      summary: Get featured destinations for the homepage
+      responses:
+        "200":
+          description: Featured destinations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Destination"
+
+  /api/destinations/{slug}:
+    get:
+      tags: [Destinations]
+      summary: Get destination details by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          example: lagos
+      responses:
+        "200":
+          description: Destination details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Destination"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/bookings:
+    post:
+      tags: [Bookings]
+      summary: Create a booking request for an experience
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Booking request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Booking"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    get:
+      tags: [Bookings]
+      summary: List bookings for the authenticated user or provider
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+      responses:
+        "200":
+          description: Paginated bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedBookings"
+
+  /api/bookings/{bookingId}:
+    get:
+      tags: [Bookings]
+      summary: Get booking details
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/bookingId"
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Booking"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/bookings/{bookingId}/status:
+    patch:
+      tags: [Bookings]
+      summary: Update booking status (provider or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/bookingId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBookingStatusRequest"
+      responses:
+        "200":
+          description: Booking status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Booking"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/saved:
+    get:
+      tags: [Saved Experiences]
+      summary: List saved experiences for the authenticated customer
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Saved experiences with full details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Experience"
+
+  /api/saved/{experienceId}:
+    post:
+      tags: [Saved Experiences]
+      summary: Save an experience (add to wishlist)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/experienceId"
+      responses:
+        "201":
+          description: Experience saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/SavedExperience"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Saved Experiences]
+      summary: Remove a saved experience
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/experienceId"
+      responses:
+        "200":
+          description: Experience removed from saved list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                    example: Experience removed from saved list
+
+  /api/providers:
+    post:
+      tags: [Providers]
+      summary: Create a provider business profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProviderRequest"
+      responses:
+        "201":
+          description: Provider profile created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "409":
+          description: Provider profile already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/providers/me:
+    get:
+      tags: [Providers]
+      summary: Get the authenticated provider profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Provider profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/providers/{providerId}:
+    get:
+      tags: [Providers]
+      summary: Get a provider public profile
+      parameters:
+        - $ref: "#/components/parameters/providerId"
+      responses:
+        "200":
+          description: Provider profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Provider"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/providers/{providerId}/experiences:
+    get:
+      tags: [Providers]
+      summary: List experiences offered by a provider
+      parameters:
+        - $ref: "#/components/parameters/providerId"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Provider experiences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedExperiences"
+
+  /api/users/me/dashboard:
+    get:
+      tags: [Users]
+      summary: Customer dashboard with bookings and saved experiences
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/DashboardResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from /api/auth/login or /api/auth/register
+
+  parameters:
+    experienceId:
+      name: experienceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    bookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    providerId:
+      name: providerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    destination:
+      name: destination
+      in: query
+      schema:
+        type: string
+      example: Lagos
+    category:
+      name: category
+      in: query
+      schema:
+        $ref: "#/components/schemas/ExperienceCategory"
+    search:
+      name: search
+      in: query
+      schema:
+        type: string
+    featured:
+      name: featured
+      in: query
+      schema:
+        type: boolean
+    minPrice:
+      name: minPrice
+      in: query
+      schema:
+        type: number
+    maxPrice:
+      name: maxPrice
+      in: query
+      schema:
+        type: number
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        maximum: 50
+    cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Pagination cursor from a previous response
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationErrorResponse"
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: get-your-tour-api
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Validation failed
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    UserRole:
+      type: string
+      enum: [customer, provider, admin]
+
+    ExperienceCategory:
+      type: string
+      enum:
+        - adventure
+        - relaxation
+        - nightlife
+        - cultural
+        - wildlife
+        - water_sports
+        - romantic
+        - family_friendly
+
+    ExperienceStatus:
+      type: string
+      enum: [draft, published, archived]
+
+    BookingStatus:
+      type: string
+      enum: [pending, confirmed, cancelled, completed]
+
+    PublicUser:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        phone:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+          default: customer
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/PublicUser"
+            token:
+              type: string
+              description: JWT bearer token
+
+    Experience:
+      type: object
+      properties:
+        experienceId:
+          type: string
+          format: uuid
+        providerId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        destination:
+          type: string
+        destinationSlug:
+          type: string
+        category:
+          $ref: "#/components/schemas/ExperienceCategory"
+        price:
+          type: number
+        currency:
+          type: string
+          example: NGN
+        duration:
+          type: string
+          example: 3 hours
+        maxGroupSize:
+          type: integer
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        featured:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/ExperienceStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateExperienceRequest:
+      type: object
+      required:
+        - title
+        - description
+        - destination
+        - category
+        - price
+        - duration
+        - maxGroupSize
+      properties:
+        title:
+          type: string
+          minLength: 3
+        description:
+          type: string
+          minLength: 10
+        destination:
+          type: string
+        category:
+          $ref: "#/components/schemas/ExperienceCategory"
+        price:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          default: NGN
+        duration:
+          type: string
+        maxGroupSize:
+          type: integer
+          minimum: 1
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        featured:
+          type: boolean
+          default: false
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+
+    UpdateExperienceRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        destination:
+          type: string
+        category:
+          $ref: "#/components/schemas/ExperienceCategory"
+        price:
+          type: number
+        currency:
+          type: string
+        duration:
+          type: string
+        maxGroupSize:
+          type: integer
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        featured:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/ExperienceStatus"
+
+    PaginatedExperiences:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        nextCursor:
+          type: string
+
+    Destination:
+      type: object
+      properties:
+        destinationSlug:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        featured:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateDestinationRequest:
+      type: object
+      required: [name, state, description, imageUrl]
+      properties:
+        name:
+          type: string
+        state:
+          type: string
+        description:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+        featured:
+          type: boolean
+          default: false
+        destinationSlug:
+          type: string
+
+    PaginatedDestinations:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Destination"
+        nextCursor:
+          type: string
+
+    Booking:
+      type: object
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        experienceId:
+          type: string
+          format: uuid
+        experienceTitle:
+          type: string
+        providerId:
+          type: string
+          format: uuid
+        requestedDate:
+          type: string
+          format: date-time
+        groupSize:
+          type: integer
+        totalPrice:
+          type: number
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateBookingRequest:
+      type: object
+      required: [experienceId, requestedDate, groupSize]
+      properties:
+        experienceId:
+          type: string
+          format: uuid
+        requestedDate:
+          type: string
+          format: date-time
+        groupSize:
+          type: integer
+          minimum: 1
+        notes:
+          type: string
+          maxLength: 500
+
+    UpdateBookingStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+
+    PaginatedBookings:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        nextCursor:
+          type: string
+
+    SavedExperience:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        experienceId:
+          type: string
+          format: uuid
+        savedAt:
+          type: string
+          format: date-time
+
+    Provider:
+      type: object
+      properties:
+        providerId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        businessName:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        verified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateProviderRequest:
+      type: object
+      required: [businessName, description, location]
+      properties:
+        businessName:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+
+    DashboardResponse:
+      type: object
+      properties:
+        recentBookings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        savedExperiences:
+          type: array
+          items:
+            $ref: "#/components/schemas/Experience"
+        stats:
+          type: object
+          properties:
+            totalBookings:
+              type: integer
+            totalSaved:
+              type: integer
