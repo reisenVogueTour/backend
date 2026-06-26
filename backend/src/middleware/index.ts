@@ -6,6 +6,7 @@ import type { AuthTokenPayload } from "../types";
 
 export interface AuthenticatedRequest extends Request {
   user?: AuthTokenPayload;
+  validatedQuery?: Record<string, unknown>;
 }
 
 export function authenticate(
@@ -63,7 +64,7 @@ export function validateBody<T>(schema: ZodType<T>) {
 }
 
 export function validateQuery<T>(schema: ZodType<T>) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req.query);
 
     if (!result.success) {
@@ -73,7 +74,7 @@ export function validateQuery<T>(schema: ZodType<T>) {
       return;
     }
 
-    req.query = result.data as Request["query"];
+    req.validatedQuery = result.data as Record<string, unknown>;
     next();
   };
 }
