@@ -37,8 +37,9 @@ Express + TypeScript REST API for the **Tours Connect** hackathon MVP. The platf
 | **Providers** | Application with CAC details, admin approval workflow, provider dashboard |
 | **Admin** | Review/approve/reject provider applications, admin dashboard |
 | **Dashboards** | Customer, provider, and admin dashboards |
+| **AI (Bedrock)** | Experience recommendations & AI-sequenced itineraries with unlockable checkpoints |
 
-Post-hackathon items (payments, reviews, AI recommendations, etc.) are out of scope for this API version.
+Post-hackathon items (payments, reviews, etc.) are out of scope for this API version.
 
 ---
 
@@ -167,6 +168,8 @@ Copy `.env.example` to `.env` and fill in the values:
 | `DYNAMODB_TABLE_NAME` | **Yes** | `tours-connect` | DynamoDB table name |
 | `DYNAMODB_ENDPOINT` | No | — | Set to `http://localhost:8000` for DynamoDB Local |
 | `API_BASE_URL` | No | `http://localhost:5000` | Base URL shown in Swagger UI |
+| `BEDROCK_MODEL_ID` | No | — | Claude **inference-profile** id on Bedrock (e.g. `us.anthropic.claude-sonnet-4-6`). |
+| `BEDROCK_REGION` | No | `AWS_REGION` | Region for Bedrock calls |
 
 ---
 
@@ -232,6 +235,18 @@ AWS_SECRET_ACCESS_KEY=local
 ```
 
 Create the table against the local endpoint by adding `--endpoint-url http://localhost:8000` to the `aws dynamodb create-table` command above.
+
+---
+
+## Amazon Bedrock setup (AI features)
+
+The recommender and itinerary sequencer call **Claude on Amazon Bedrock** (Converse API). To enable them:
+
+1. The IAM user/role behind your AWS credentials needs **`bedrock:InvokeModel`** — e.g. attach `AmazonBedrockFullAccess`.
+2. First-time Anthropic use on an account requires a one-time **use-case form** (Bedrock console → Model catalog).
+3. Set **`BEDROCK_MODEL_ID`** to a **cross-region inference profile** id — the `us.`-prefixed form, e.g. `us.anthropic.claude-sonnet-4-6`. The plain `anthropic.*` id is rejected for on-demand invocation on newer models (`ValidationException: … isn't supported. Retry … with the ID or ARN of an inference profile`).
+
+If `BEDROCK_MODEL_ID` is unset or a call fails, the API degrades gracefully: recommendations return an empty list and the sequencer keeps the given order — so the rest of the API keeps working.
 
 ---
 
@@ -448,6 +463,7 @@ Base URL: `http://localhost:5000`
 | `GET` | `/` | No | — | Browse/search published experiences |
 | `GET` | `/featured` | No | — | Homepage featured experiences |
 | `GET` | `/:experienceId` | No | — | Experience detail page |
+| `POST` | `/recommendations` | Yes | customer | **AI** — describe a trip, get matching experiences |
 | `POST` | `/` | Yes | provider*, admin | Create a new listing (*requires approved application) |
 | `PATCH` | `/:experienceId` | Yes | provider*, admin | Update a listing |
 
@@ -488,6 +504,41 @@ Base URL: `http://localhost:5000`
 | `minPrice` / `maxPrice` | number | Price range (NGN) |
 | `limit` | integer | Page size (max 50, default 20) |
 | `cursor` | string | Pagination cursor from previous response |
+
+---
+
+### Itineraries — `/api/itineraries`
+
+AI flow: describe a trip → recommendations (`POST /api/experiences/recommendations`)
+→ **Build** an AI-sequenced itinerary → Save/Start → unlock checkpoints as you go.
+
+| Method | Path | Auth | Role | Description |
+|--------|------|------|------|-------------|
+| `POST` | `/generate` | Yes | any | **AI** — build a draft itinerary from chosen experiences (not saved) |
+| `POST` | `/` | Yes | any | Save (`not_started`) or Start (`in_progress`, `start: true`) |
+| `GET` | `/current` | Yes | any | Most recent in_progress trip (or `null`) |
+| `GET` | `/` | Yes | any | All own itineraries (any status) |
+| `GET` | `/:itineraryId` | Yes | any | One itinerary |
+| `PATCH` | `/:itineraryId/start` | Yes | any | Start a saved itinerary |
+| `PATCH` | `/:itineraryId/checkpoints/:checkpointId/complete` | Yes | any | Complete active checkpoint, unlock next |
+| `DELETE` | `/:itineraryId` | Yes | any | Delete an itinerary |
+
+**Status lifecycle:** `not_started` → `in_progress` → `completed`
+**Checkpoint lifecycle:** `locked` → `active` → `completed`
+
+**Generate body (`POST /generate`):**
+
+```json
+{
+  "destinationSlug": "lagos",
+  "prompt": "art, slow coffee and a romantic evening — no extreme sports",
+  "experienceIds": ["uuid", "uuid"],
+  "durationValue": 1,
+  "durationUnit": "days"
+}
+```
+
+`durationUnit`: `hours` | `days` | `weeks` | `months`. The AI picks how many stops fit the duration and orders them into a coherent journey. `POST /` takes the same body plus `start` (boolean).
 
 ---
 
