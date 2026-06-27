@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc && mkdir -p dist/docs/swagger && cp src/docs/swagger/openapi.yaml dist/docs/swagger/openapi.yaml",
     "start": "node dist/server.js",
+    "seed": "ts-node scripts/seed.ts",
     "test": "echo \"No tests configured yet\""
   },
   "keywords": [],
@@ -16,6 +17,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1073.0",
     "@aws-sdk/lib-dynamodb": "^3.1073.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -28,6 +30,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
