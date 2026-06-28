@@ -8,6 +8,7 @@
     "build": "tsc && mkdir -p dist/docs/swagger && cp src/docs/swagger/openapi.yaml dist/docs/swagger/openapi.yaml",
     "start": "node dist/server.js",
     "seed": "ts-node scripts/seed.ts",
+    "seed:experiences": "ts-node scripts/seed-experiences.mts",
     "test": "echo \"No tests configured yet\""
   },
   "keywords": [],
@@ -25,7 +26,7 @@
     "jsonwebtoken": "^9.0.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
-    "uuid": "^14.0.0",
+    "uuid": "^14.0.1",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
