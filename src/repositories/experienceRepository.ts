@@ -2,7 +2,6 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
-  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import { docClient, tableName } from "../config/db";
@@ -69,10 +68,10 @@ export async function createExperience(
         PK: experiencePk(experience.experienceId),
         SK: "METADATA",
         entityType: "EXPERIENCE",
-        GSI1PK: experience.featured ? "FEATURED" : "EXPERIENCE",
-        GSI1SK: `${experience.status}#${experience.createdAt}`,
+        GSI1PK: "EXPERIENCE#PUBLISHED",
+        GSI1SK: experience.featured ? `featured#${experience.createdAt}` : experience.createdAt,
         GSI2PK: `DESTINATION#${experience.destinationSlug}`,
-        GSI2SK: `${experience.status}#${experience.createdAt}`,
+        GSI2SK: `EXPERIENCE#${experience.experienceId}`,
         GSI3PK: `${PROVIDER_PREFIX}${experience.providerId}`,
         GSI3SK: `${EXPERIENCE_PREFIX}${experience.experienceId}`,
         ...experience,
@@ -100,100 +99,6 @@ export async function getExperienceById(
   return result.Item as Experience;
 }
 
-export async function listExperiences(
-  filters: ExperienceFilters = {},
-): Promise<PaginatedResult<Experience>> {
-  const limit = Math.min(filters.limit ?? 20, 50);
-  const status = filters.status ?? "published";
-
-  if (filters.featured) {
-    const result = await docClient.send(
-      new QueryCommand({
-        TableName: tableName,
-        IndexName: "GSI1",
-        KeyConditionExpression: "GSI1PK = :pk AND begins_with(GSI1SK, :status)",
-        ExpressionAttributeValues: {
-          ":pk": "FEATURED",
-          ":status": `${status}#`,
-        },
-        Limit: limit,
-        ExclusiveStartKey: decodeCursor(filters.cursor),
-      }),
-    );
-
-    return {
-      items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
-      nextCursor: encodeCursor(result.LastEvaluatedKey),
-    };
-  }
-
-  if (filters.destination) {
-    const destinationSlug = slugify(filters.destination);
-    const result = await docClient.send(
-      new QueryCommand({
-        TableName: tableName,
-        IndexName: "GSI2",
-        KeyConditionExpression: "GSI2PK = :pk AND begins_with(GSI2SK, :status)",
-        ExpressionAttributeValues: {
-          ":pk": `DESTINATION#${destinationSlug}`,
-          ":status": `${status}#`,
-        },
-        Limit: limit,
-        ExclusiveStartKey: decodeCursor(filters.cursor),
-      }),
-    );
-
-    return {
-      items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
-      nextCursor: encodeCursor(result.LastEvaluatedKey),
-    };
-  }
-
-  if (filters.providerId) {
-    const result = await docClient.send(
-      new QueryCommand({
-        TableName: tableName,
-        IndexName: "GSI3",
-        KeyConditionExpression: "GSI3PK = :pk",
-        ExpressionAttributeValues: {
-          ":pk": `${PROVIDER_PREFIX}${filters.providerId}`,
-        },
-        Limit: limit,
-        ExclusiveStartKey: decodeCursor(filters.cursor),
-      }),
-    );
-
-    const items = applyInMemoryFilters(
-      (result.Items ?? []) as Experience[],
-      { ...filters, status },
-    );
-
-    return {
-      items,
-      nextCursor: encodeCursor(result.LastEvaluatedKey),
-    };
-  }
-
-  const result = await docClient.send(
-    new QueryCommand({
-      TableName: tableName,
-      IndexName: "GSI1",
-      KeyConditionExpression: "GSI1PK = :pk AND begins_with(GSI1SK, :status)",
-      ExpressionAttributeValues: {
-        ":pk": "EXPERIENCE",
-        ":status": `${status}#`,
-      },
-      Limit: limit,
-      ExclusiveStartKey: decodeCursor(filters.cursor),
-    }),
-  );
-
-  return {
-    items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
-    nextCursor: encodeCursor(result.LastEvaluatedKey),
-  };
-}
-
 function applyInMemoryFilters(
   items: Experience[],
   filters: ExperienceFilters,
@@ -209,6 +114,98 @@ function applyInMemoryFilters(
     }
     return true;
   });
+}
+
+export async function listExperiences(
+  filters: ExperienceFilters = {},
+): Promise<PaginatedResult<Experience>> {
+  const limit = Math.min(filters.limit ?? 20, 50);
+
+  // Handle featured filter
+  if (filters.featured) {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": "EXPERIENCE#PUBLISHED",
+        },
+        Limit: limit,
+        ExclusiveStartKey: decodeCursor(filters.cursor),
+      }),
+    );
+
+    const items = (result.Items ?? []) as Experience[];
+    const featuredItems = items.filter(item => item.featured === true);
+
+    return {
+      items: applyInMemoryFilters(featuredItems, filters),
+      nextCursor: encodeCursor(result.LastEvaluatedKey),
+    };
+  }
+
+  // Handle destination filter
+  if (filters.destination) {
+    const destinationSlug = slugify(filters.destination);
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "GSI2",
+        KeyConditionExpression: "GSI2PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": `DESTINATION#${destinationSlug}`,
+        },
+        Limit: limit,
+        ExclusiveStartKey: decodeCursor(filters.cursor),
+      }),
+    );
+
+    return {
+      items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
+      nextCursor: encodeCursor(result.LastEvaluatedKey),
+    };
+  }
+
+  // Handle provider filter
+  if (filters.providerId) {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "GSI3",
+        KeyConditionExpression: "GSI3PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": `${PROVIDER_PREFIX}${filters.providerId}`,
+        },
+        Limit: limit,
+        ExclusiveStartKey: decodeCursor(filters.cursor),
+      }),
+    );
+
+    return {
+      items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
+      nextCursor: encodeCursor(result.LastEvaluatedKey),
+    };
+  }
+
+  // Default: get all published experiences
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: "GSI1",
+      KeyConditionExpression: "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": "EXPERIENCE#PUBLISHED",
+      },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(filters.cursor),
+    }),
+  );
+
+  return {
+    items: applyInMemoryFilters((result.Items ?? []) as Experience[], filters),
+    nextCursor: encodeCursor(result.LastEvaluatedKey),
+  };
 }
 
 export async function updateExperience(
@@ -254,10 +251,10 @@ export async function updateExperience(
         PK: experiencePk(updated.experienceId),
         SK: "METADATA",
         entityType: "EXPERIENCE",
-        GSI1PK: updated.featured ? "FEATURED" : "EXPERIENCE",
-        GSI1SK: `${updated.status}#${updated.createdAt}`,
+        GSI1PK: "EXPERIENCE#PUBLISHED",
+        GSI1SK: updated.featured ? `featured#${updated.createdAt}` : updated.createdAt,
         GSI2PK: `DESTINATION#${updated.destinationSlug}`,
-        GSI2SK: `${updated.status}#${updated.createdAt}`,
+        GSI2SK: `EXPERIENCE#${updated.experienceId}`,
         GSI3PK: `${PROVIDER_PREFIX}${updated.providerId}`,
         GSI3SK: `${EXPERIENCE_PREFIX}${updated.experienceId}`,
         ...updated,
