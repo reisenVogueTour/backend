@@ -11,7 +11,7 @@ function requireEnv(key: string, fallback?: string): string {
 }
 
 export const env = {
-  port: Number(process.env.PORT) || 5000,
+  port: Number(process.env.PORT) || 5500,
   nodeEnv: process.env.NODE_ENV ?? "development",
   jwtSecret: requireEnv("JWT_SECRET", "dev-secret-change-me"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
@@ -20,5 +20,5 @@ export const env = {
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   dynamoTableName: requireEnv("DYNAMODB_TABLE_NAME", "tours-connect"),
   dynamoEndpoint: process.env.DYNAMODB_ENDPOINT,
-  apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5000",
+  apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5500",
 };
