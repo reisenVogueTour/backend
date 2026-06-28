@@ -13,7 +13,7 @@ setupSwagger(app);
 
 app.get("/", (_req, res) => {
   res.json({
-    message: "Tours Connect API is running",
+    message: " Connect API is running",
     docs: "/api-docs",
   });
 });
