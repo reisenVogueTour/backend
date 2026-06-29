@@ -58,9 +58,9 @@ export interface Experience {
 }
 
 export interface Destination {
-  destinationSlug: string;
+  slug: string;
   name: string;
-  state: string;
+  country: string;
   description: string;
   imageUrl: string;
   featured: boolean;

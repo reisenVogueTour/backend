@@ -113,11 +113,11 @@ export const updateBookingStatusSchema = z.object({
 
 export const createDestinationSchema = z.object({
   name: z.string().min(2),
-  state: z.string().min(2),
+  country: z.string().min(2),
   description: z.string().min(10),
   imageUrl: z.url(),
   featured: z.boolean().default(false),
-  destinationSlug: z.string().optional(),
+  slug: z.string().optional(),
 });
 
 export const paginationQuerySchema = z.object({
