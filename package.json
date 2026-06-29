@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed": "ts-node scripts/seed.ts",
     "seed:experiences": "ts-node scripts/seed-experiences.mts",
+    "seed:destinations": "ts-node scripts/seed-destinations.ts",
     "test": "echo \"No tests configured yet\""
   },
   "keywords": [],
@@ -32,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
     "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
