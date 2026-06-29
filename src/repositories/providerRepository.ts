@@ -1,4 +1,4 @@
-import { GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import { docClient, tableName } from "../config/db";
 import type {
@@ -208,4 +208,18 @@ export async function reviewProviderApplication(input: {
   );
 
   return updated;
+}
+
+export async function deleteProvider(providerId: string): Promise<void> {
+  const existing = await getProviderById(providerId);
+  if (!existing) {
+    throw new AppError(404, "Provider not found");
+  }
+
+  await docClient.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: { PK: providerPk(providerId), SK: "PROFILE" },
+    }),
+  );
 }

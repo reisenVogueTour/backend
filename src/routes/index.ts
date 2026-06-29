@@ -8,6 +8,7 @@ import itineraryRoutes from "./itineraries";
 import providerRoutes from "./providers";
 import savedRoutes from "./saved";
 import userRoutes from "./users";
+import uploadsRoutes from "./uploads";
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use("/bookings", bookingRoutes);
 router.use("/saved", savedRoutes);
 router.use("/providers", providerRoutes);
 router.use("/users", userRoutes);
+router.use("/uploads", uploadsRoutes);
 
 export default router;

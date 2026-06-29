@@ -11,6 +11,7 @@ import {
   getProviderById,
   listProviderApplications,
   reviewProviderApplication,
+  deleteProvider,
 } from "../repositories/providerRepository";
 import { AppError } from "../utils/errors";
 import {
@@ -99,6 +100,18 @@ router.patch(
       });
 
       res.json({ success: true, data: provider });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  "/providers/applications/:providerId",
+  async (req: AuthenticatedRequest, res, next) => {
+    try {
+      await deleteProvider(req.params.providerId as string);
+      res.json({ success: true, data: { deleted: true } });
     } catch (error) {
       next(error);
     }

@@ -5,9 +5,10 @@ scripts/*
 
 .env
 .env.*
-!.env.example
+.env.example
 
 .DS_Store
 *.log
 *.tsbuildinfo
 /src/scripts
+.env.example
