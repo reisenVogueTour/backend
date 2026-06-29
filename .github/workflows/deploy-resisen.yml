@@ -58,13 +58,12 @@ jobs:
                       # Check if dependencies changed
                       if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -qE 'package(-lock)?\.json'; then
                         echo "📦 Dependencies changed — installing all dependencies..."
-                        # Install ALL dependencies (including dev) for building
                         npm ci
                       else
                         echo "✅ package.json unchanged — skipping npm ci"
                       fi
 
-                      # Build the project (TypeScript will now be available)
+                      # Build the project
                       echo "🔨 Building TypeScript..."
                       npm run build
 
@@ -74,11 +73,6 @@ jobs:
 
                       # Ensure directories exist
                       mkdir -p uploads logs
-
-                      # Install production dependencies only for running
-                      # This removes dev dependencies to save space
-                      echo "🧹 Cleaning up dev dependencies..."
-                      npm prune --production
 
                       # Start or reload PM2
                       echo "🚀 Deploying with PM2..."
