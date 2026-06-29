@@ -10,5 +10,7 @@ scripts/*
 .DS_Store
 *.log
 *.tsbuildinfo
-/src/scripts
-.env.example
+
+.env
+.env.*
+*.env
