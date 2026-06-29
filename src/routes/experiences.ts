@@ -23,6 +23,9 @@ import {
   recommendExperiencesSchema,
   updateExperienceSchema,
 } from "../validators/schemas";
+import { docClient, tableName } from "../config/db";
+import { QueryCommand } from "@aws-sdk/lib-dynamodb";
+import type { Experience } from "../types";
 
 const router = Router();
 
@@ -46,13 +49,27 @@ router.get("/", validateQuery(experienceQuerySchema), async (req, res, next) => 
 router.get("/featured", async (req, res, next) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 10, 20);
-    const result = await listExperiences({
-      featured: true,
-      status: "published",
-      limit,
-    });
 
-    res.json({ success: true, data: result.items });
+    // Query directly from DynamoDB to get featured experiences
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk AND begins_with(GSI1SK, :sk)",
+        ExpressionAttributeValues: {
+          ":pk": "EXPERIENCE#PUBLISHED",
+          ":sk": "featured#",
+        },
+        Limit: limit,
+      })
+    );
+
+    const items = (result.Items || []) as Experience[];
+
+    res.json({
+      success: true,
+      data: items
+    });
   } catch (error) {
     next(error);
   }
@@ -154,12 +171,12 @@ router.patch(
         ...rest,
         ...(numberOfDays !== undefined
           ? {
+            numberOfDays,
+            duration: buildDuration(
               numberOfDays,
-              duration: buildDuration(
-                numberOfDays,
-                duration ?? existing.duration,
-              ),
-            }
+              duration ?? existing.duration,
+            ),
+          }
           : duration !== undefined
             ? { duration }
             : {}),
