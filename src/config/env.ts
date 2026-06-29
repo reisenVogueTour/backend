@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -12,16 +12,15 @@ function requireEnv(key: string, fallback?: string): string {
 
 export const env = {
   port: Number(process.env.PORT) || 5500,
-  nodeEnv: process.env.NODE_ENV ?? "development",
-  jwtSecret: requireEnv("JWT_SECRET", "dev-secret-change-me"),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
-  awsRegion: process.env.AWS_REGION ?? "us-east-1",
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  jwtSecret: requireEnv('JWT_SECRET', 'dev-secret-change-me'),
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+  awsRegion: process.env.AWS_REGION ?? 'us-east-1',
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  dynamoTableName: requireEnv("DYNAMODB_TABLE_NAME", "resesin"),
+  dynamoTableName: requireEnv('DYNAMODB_TABLE_NAME', 'resisen'),
   dynamoEndpoint: process.env.DYNAMODB_ENDPOINT,
-  apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5000",
+  apiBaseUrl: process.env.API_BASE_URL ?? 'http://localhost:5000',
   bedrockModelId: process.env.BEDROCK_MODEL_ID,
-  bedrockRegion:
-    process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1",
+  bedrockRegion: process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? 'us-east-1',
 };
