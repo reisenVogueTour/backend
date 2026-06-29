@@ -134,3 +134,35 @@ export interface PaginatedResult<T> {
   items: T[];
   nextCursor?: string | undefined;
 }
+
+export type CheckpointStatus = "locked" | "active" | "completed";
+
+export type ItineraryStatus = "not_started" | "in_progress" | "completed";
+
+export type DurationUnit = "hours" | "days" | "weeks" | "months";
+
+export interface ItineraryCheckpoint {
+  checkpointId: string;
+  order: number;
+  experienceId: string;
+  title: string;
+  price: number;
+  status: CheckpointStatus;
+  completedAt?: string;
+}
+
+export interface Itinerary {
+  itineraryId: string;
+  userId: string;
+  destination: string;
+  destinationSlug: string;
+  prompt: string;
+  durationValue: number;
+  durationUnit: DurationUnit;
+  checkpoints: ItineraryCheckpoint[];
+  totalPrice: number;
+  currency: string;
+  status: ItineraryStatus;
+  createdAt: string;
+  updatedAt: string;
+}

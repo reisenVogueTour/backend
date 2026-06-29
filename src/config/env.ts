@@ -20,5 +20,8 @@ export const env = {
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   dynamoTableName: requireEnv("DYNAMODB_TABLE_NAME", "tours-connect"),
   dynamoEndpoint: process.env.DYNAMODB_ENDPOINT,
-  apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5500",
+  apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5000",
+  bedrockModelId: process.env.BEDROCK_MODEL_ID,
+  bedrockRegion:
+    process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1",
 };
