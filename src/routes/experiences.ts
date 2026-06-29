@@ -12,12 +12,15 @@ import {
   listExperiences,
   updateExperience,
 } from "../repositories/experienceRepository";
+import { ensureDestinationExists } from "../repositories/destinationRepository";
 import { getProviderByUserId } from "../repositories/providerRepository";
+import { matchExperiences } from "../services/recommendation";
 import { AppError } from "../utils/errors";
 import { requireApprovedProvider } from "../utils/provider";
 import {
   createExperienceSchema,
   experienceQuerySchema,
+  recommendExperiencesSchema,
   updateExperienceSchema,
 } from "../validators/schemas";
 import { docClient, tableName } from "../config/db";
@@ -71,6 +74,33 @@ router.get("/featured", async (req, res, next) => {
     next(error);
   }
 });
+
+router.post(
+  "/recommendations",
+  authenticate,
+  validateBody(recommendExperiencesSchema),
+  async (req, res, next) => {
+    try {
+      const { destinationSlug, prompt } = req.body as {
+        destinationSlug: string;
+        prompt: string;
+      };
+
+      const destination = await ensureDestinationExists(destinationSlug);
+      const { items: experiences } = await listExperiences({
+        destination: destination.destinationSlug,
+        status: "published",
+        limit: 50,
+      });
+
+      const recommended = await matchExperiences(prompt, experiences);
+
+      res.json({ success: true, data: { recommended } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.get("/:experienceId", async (req, res, next) => {
   try {

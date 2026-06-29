@@ -124,3 +124,22 @@ export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(50).optional(),
   cursor: z.string().optional(),
 });
+
+export const recommendExperiencesSchema = z.object({
+  destinationSlug: z.string().min(1),
+  prompt: z.string().min(3).max(1000),
+});
+
+export const durationUnits = ["hours", "days", "weeks", "months"] as const;
+
+export const generateItinerarySchema = z.object({
+  destinationSlug: z.string().min(1),
+  prompt: z.string().min(3).max(1000),
+  experienceIds: z.array(z.uuid()).min(1).max(10),
+  durationValue: z.number().int().positive().max(365),
+  durationUnit: z.enum(durationUnits),
+});
+
+export const saveItinerarySchema = generateItinerarySchema.extend({
+  start: z.boolean().default(false),
+});

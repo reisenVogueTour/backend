@@ -20,6 +20,8 @@ tags:
     description: Registration, login, and session
   - name: Experiences
     description: Browse, search, and manage experience listings
+  - name: Itineraries
+    description: AI itinerary generation, checkpoints, and trip lifecycle
   - name: Destinations
     description: Featured and browsable destinations
   - name: Bookings
@@ -195,6 +197,44 @@ paths:
                     items:
                       $ref: "#/components/schemas/Experience"
 
+  /api/experiences/recommendations:
+    post:
+      tags: [Experiences]
+      summary: AI experience recommendations for a destination
+      description: |
+        Describe your trip in free text; Claude (Amazon Bedrock) returns the
+        experiences in that destination that match the description. Returns only
+        genuine matches (the list may be empty).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendExperiencesRequest"
+      responses:
+        "200":
+          description: Matching experiences (relevance order)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      recommended:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Experience"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/experiences/{experienceId}:
     get:
       tags: [Experiences]
@@ -240,6 +280,233 @@ paths:
                     type: boolean
                   data:
                     $ref: "#/components/schemas/Experience"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/itineraries/generate:
+    post:
+      tags: [Itineraries]
+      summary: Build a draft itinerary from chosen experiences (not saved)
+      description: |
+        AI-sequences the chosen experiences into a coherent journey sized to the
+        trip duration (the model picks how many stops fit and orders them). Returns
+        a draft only — nothing is persisted until it is saved or started.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateItineraryRequest"
+      responses:
+        "200":
+          description: Draft itinerary (not persisted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      itinerary:
+                        $ref: "#/components/schemas/Itinerary"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/itineraries:
+    post:
+      tags: [Itineraries]
+      summary: Save (not_started) or Start (in_progress) an itinerary
+      description: |
+        Persists the previewed itinerary, rebuilt from the experience ids (no AI
+        re-call). `start: true` begins the trip immediately (first checkpoint
+        active); otherwise it is saved as not_started.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveItineraryRequest"
+      responses:
+        "201":
+          description: Itinerary persisted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Itinerary"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    get:
+      tags: [Itineraries]
+      summary: List the authenticated user's itineraries (any status)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+      responses:
+        "200":
+          description: Paginated itineraries (newest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/PaginatedItineraries"
+
+  /api/itineraries/current:
+    get:
+      tags: [Itineraries]
+      summary: The most recent in_progress itinerary (or null)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current itinerary, or null if none in progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    nullable: true
+                    allOf:
+                      - $ref: "#/components/schemas/Itinerary"
+
+  /api/itineraries/{itineraryId}:
+    get:
+      tags: [Itineraries]
+      summary: Get one itinerary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/itineraryId"
+      responses:
+        "200":
+          description: Itinerary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Itinerary"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Itineraries]
+      summary: Delete an itinerary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/itineraryId"
+      responses:
+        "200":
+          description: Itinerary deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/itineraries/{itineraryId}/start:
+    patch:
+      tags: [Itineraries]
+      summary: Start a saved (not_started) itinerary
+      description: Activates the first checkpoint and moves the trip to in_progress.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/itineraryId"
+      responses:
+        "200":
+          description: Itinerary started (or already in_progress)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Itinerary"
+        "400":
+          description: Itinerary already completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/itineraries/{itineraryId}/checkpoints/{checkpointId}/complete:
+    patch:
+      tags: [Itineraries]
+      summary: Complete the active checkpoint and unlock the next
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/itineraryId"
+        - name: checkpointId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Checkpoint completed; next one unlocked (or trip completed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/Itinerary"
+        "400":
+          description: Checkpoint is locked, or the itinerary has not been started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
@@ -780,6 +1047,13 @@ components:
       schema:
         type: string
         format: uuid
+    itineraryId:
+      name: itineraryId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     bookingId:
       name: bookingId
       in: path
@@ -1136,6 +1410,141 @@ components:
             $ref: "#/components/schemas/Experience"
         nextCursor:
           type: string
+
+    DurationUnit:
+      type: string
+      enum: [hours, days, weeks, months]
+
+    CheckpointStatus:
+      type: string
+      enum: [locked, active, completed]
+
+    ItineraryStatus:
+      type: string
+      enum: [not_started, in_progress, completed]
+
+    ItineraryCheckpoint:
+      type: object
+      properties:
+        checkpointId:
+          type: string
+          format: uuid
+        order:
+          type: integer
+          description: 1-based position in the journey
+        experienceId:
+          type: string
+          format: uuid
+        title:
+          type: string
+          description: Snapshot of the experience title
+        price:
+          type: number
+        status:
+          $ref: "#/components/schemas/CheckpointStatus"
+        completedAt:
+          type: string
+          format: date-time
+
+    Itinerary:
+      type: object
+      properties:
+        itineraryId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        destination:
+          type: string
+        destinationSlug:
+          type: string
+        prompt:
+          type: string
+          description: The free-text description that generated the trip
+        durationValue:
+          type: integer
+        durationUnit:
+          $ref: "#/components/schemas/DurationUnit"
+        checkpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItineraryCheckpoint"
+        totalPrice:
+          type: number
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/ItineraryStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PaginatedItineraries:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Itinerary"
+        nextCursor:
+          type: string
+
+    RecommendExperiencesRequest:
+      type: object
+      required: [destinationSlug, prompt]
+      properties:
+        destinationSlug:
+          type: string
+          example: lagos
+        prompt:
+          type: string
+          minLength: 3
+          maxLength: 1000
+          example: I love art, slow coffee and a romantic evening — no extreme sports
+
+    GenerateItineraryRequest:
+      type: object
+      required:
+        - destinationSlug
+        - prompt
+        - experienceIds
+        - durationValue
+        - durationUnit
+      properties:
+        destinationSlug:
+          type: string
+        prompt:
+          type: string
+          minLength: 3
+          maxLength: 1000
+        experienceIds:
+          type: array
+          description: Experience ids to build from (e.g. the recommended ones)
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 10
+        durationValue:
+          type: integer
+          minimum: 1
+          maximum: 365
+        durationUnit:
+          $ref: "#/components/schemas/DurationUnit"
+
+    SaveItineraryRequest:
+      allOf:
+        - $ref: "#/components/schemas/GenerateItineraryRequest"
+        - type: object
+          properties:
+            start:
+              type: boolean
+              default: false
+              description: true = Start (in_progress); false = Save (not_started)
 
     Destination:
       type: object
