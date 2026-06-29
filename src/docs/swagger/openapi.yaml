@@ -1549,11 +1549,11 @@ components:
     Destination:
       type: object
       properties:
-        destinationSlug:
+        slug:
           type: string
         name:
           type: string
-        state:
+        country:
           type: string
         description:
           type: string
@@ -1571,11 +1571,11 @@ components:
 
     CreateDestinationRequest:
       type: object
-      required: [name, state, description, imageUrl]
+      required: [name, country, description, imageUrl]
       properties:
         name:
           type: string
-        state:
+        country:
           type: string
         description:
           type: string
@@ -1585,7 +1585,7 @@ components:
         featured:
           type: boolean
           default: false
-        destinationSlug:
+        slug:
           type: string
 
     PaginatedDestinations:
