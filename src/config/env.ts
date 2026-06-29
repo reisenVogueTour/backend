@@ -11,7 +11,7 @@ function requireEnv(key: string, fallback?: string): string {
 }
 
 export const env = {
-  port: Number(process.env.PORT) || 5000,
+  port: Number(process.env.PORT) || 5500,
   nodeEnv: process.env.NODE_ENV ?? "development",
   jwtSecret: requireEnv("JWT_SECRET", "dev-secret-change-me"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",

@@ -1,10 +1,11 @@
 import { GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import { docClient, tableName } from "../config/db";
-import type { Booking, BookingStatus, PaginatedResult } from "../types";
+import type { Booking, BookingStatus, PaginatedResult, User } from "../types";
 import { nowIso } from "../utils/auth";
 import { AppError } from "../utils/errors";
 import { getExperienceById } from "./experienceRepository";
+import { getUserById } from "./userRepository";
 
 const BOOKING_PREFIX = "BOOKING#";
 const USER_PREFIX = "USER#";
@@ -127,7 +128,7 @@ export async function listBookingsByProvider(
   providerId: string,
   limit = 20,
   cursor?: string,
-): Promise<PaginatedResult<Booking>> {
+): Promise<PaginatedResult<Booking & { customer?: User }>> {
   const result = await docClient.send(
     new QueryCommand({
       TableName: tableName,
@@ -143,8 +144,24 @@ export async function listBookingsByProvider(
     }),
   );
 
+  const bookings = (result.Items ?? []) as Booking[];
+  
+  // Fetch customer details for each booking
+  const bookingsWithCustomers = await Promise.all(
+    bookings.map(async (booking) => {
+      const customer = await getUserById(booking.userId);
+      if (customer) {
+        return {
+          ...booking,
+          customer,
+        } as Booking & { customer: User };
+      }
+      return booking as Booking & { customer?: User };
+    }),
+  );
+
   return {
-    items: (result.Items ?? []) as Booking[],
+    items: bookingsWithCustomers,
     nextCursor: encodeCursor(result.LastEvaluatedKey),
   };
 }

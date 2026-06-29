@@ -10,7 +10,7 @@ info:
     name: Resisen
 
 servers:
-  - url: http://localhost:5000
+  - url: http://localhost:5500
     description: Local development
 
 tags:
