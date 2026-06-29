@@ -1,13 +1,13 @@
 openapi: 3.0.3
 info:
-  title: Tours Connect API
+  title: Resisen API
   description: |
-    Hackathon MVP API for Tours Connect — an AI-powered tourism marketplace.
+    Hackathon MVP API for Resisen — an AI-powered tourism marketplace.
     Supports customer discovery, saved experiences, booking requests, and provider listings.
     Data is stored in AWS DynamoDB.
   version: 1.0.0
   contact:
-    name: Tours Connect
+    name: Resisen
 
 servers:
   - url: http://localhost:5000
