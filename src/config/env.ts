@@ -18,7 +18,7 @@ export const env = {
   awsRegion: process.env.AWS_REGION ?? "us-east-1",
   awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  dynamoTableName: requireEnv("DYNAMODB_TABLE_NAME", "tours-connect"),
+  dynamoTableName: requireEnv("DYNAMODB_TABLE_NAME", "resesin"),
   dynamoEndpoint: process.env.DYNAMODB_ENDPOINT,
   apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:5000",
   bedrockModelId: process.env.BEDROCK_MODEL_ID,

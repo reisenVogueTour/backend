@@ -1,6 +1,6 @@
-# Tours Connect — Backend API
+# Resisen — Backend API
 
-Express + TypeScript REST API for the **Tours Connect** hackathon MVP. The platform connects fun seekers with verified experience providers across Nigeria — browse experiences, save favourites, and submit booking requests.
+Express + TypeScript REST API for the **Resisen** hackathon MVP. The platform connects fun seekers with verified experience providers across Nigeria — browse experiences, save favourites, and submit booking requests.
 
 **Stack:** Express 5 · TypeScript · AWS DynamoDB · JWT auth · Zod validation · Swagger/OpenAPI
 
@@ -165,7 +165,7 @@ Copy `.env.example` to `.env` and fill in the values:
 | `AWS_REGION` | No | `us-east-1` | AWS region for DynamoDB |
 | `AWS_ACCESS_KEY_ID` | Yes* | — | AWS credentials (*not needed if using IAM role on EC2/Lambda) |
 | `AWS_SECRET_ACCESS_KEY` | Yes* | — | AWS credentials |
-| `DYNAMODB_TABLE_NAME` | **Yes** | `tours-connect` | DynamoDB table name |
+| `DYNAMODB_TABLE_NAME` | **Yes** | `resisen` | DynamoDB table name |
 | `DYNAMODB_ENDPOINT` | No | — | Set to `http://localhost:8000` for DynamoDB Local |
 | `API_BASE_URL` | No | `http://localhost:5000` | Base URL shown in Swagger UI |
 | `BEDROCK_MODEL_ID` | No | — | Claude **inference-profile** id on Bedrock (e.g. `us.anthropic.claude-sonnet-4-6`). |
@@ -179,11 +179,11 @@ The API uses a **single-table design**. All entities (users, experiences, bookin
 
 ### Create the table (AWS CLI)
 
-Replace `tours-connect` with your `DYNAMODB_TABLE_NAME` if different:
+Replace `resisen` with your `DYNAMODB_TABLE_NAME` if different:
 
 ```bash
 aws dynamodb create-table \
-  --table-name tours-connect \
+  --table-name resisen \
   --attribute-definitions \
     AttributeName=PK,AttributeType=S \
     AttributeName=SK,AttributeType=S \
