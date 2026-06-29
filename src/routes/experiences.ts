@@ -88,7 +88,7 @@ router.post(
 
       const destination = await ensureDestinationExists(destinationSlug);
       const { items: experiences } = await listExperiences({
-        destination: destination.destinationSlug,
+        destination: destination.slug,
         status: "published",
         limit: 50,
       });

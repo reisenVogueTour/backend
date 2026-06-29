@@ -61,7 +61,7 @@ router.post(
       const destination = await ensureDestinationExists(destinationSlug);
       const pool = await fetchPublishedExperiences(
         experienceIds,
-        destination.destinationSlug,
+        destination.slug,
       );
 
       if (pool.length === 0) {
@@ -77,7 +77,7 @@ router.post(
       const itinerary = buildItinerary({
         userId: req.user!.userId,
         destination: destination.name,
-        destinationSlug: destination.destinationSlug,
+        destinationSlug: destination.slug,
         prompt,
         durationValue,
         durationUnit,
@@ -116,7 +116,7 @@ router.post(
       const destination = await ensureDestinationExists(destinationSlug);
       const sequenced = await fetchPublishedExperiences(
         experienceIds,
-        destination.destinationSlug,
+        destination.slug,
       );
 
       if (sequenced.length === 0) {
@@ -126,7 +126,7 @@ router.post(
       let itinerary = buildItinerary({
         userId: req.user!.userId,
         destination: destination.name,
-        destinationSlug: destination.destinationSlug,
+        destinationSlug: destination.slug,
         prompt,
         durationValue,
         durationUnit,

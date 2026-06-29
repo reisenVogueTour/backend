@@ -24,15 +24,15 @@ function encodeCursor(
 }
 
 export async function createDestination(
-  input: Omit<Destination, "destinationSlug" | "createdAt" | "updatedAt"> & {
-    destinationSlug?: string;
+  input: Omit<Destination, "slug" | "createdAt" | "updatedAt"> & {
+    slug?: string;
   },
 ): Promise<Destination> {
   const timestamp = nowIso();
   const destination: Destination = {
-    destinationSlug: input.destinationSlug ?? slugify(input.name),
+    slug: input.slug ?? slugify(input.name),
     name: input.name,
-    state: input.state,
+    country: input.country,
     description: input.description,
     imageUrl: input.imageUrl,
     featured: input.featured,
@@ -44,11 +44,14 @@ export async function createDestination(
     new PutCommand({
       TableName: tableName,
       Item: {
-        PK: destinationPk(destination.destinationSlug),
+        PK: destinationPk(destination.slug),
         SK: "METADATA",
         entityType: "DESTINATION",
-        GSI1PK: destination.featured ? "FEATURED_DEST" : "DESTINATION",
-        GSI1SK: destination.destinationSlug,
+        // FIXED: Match the seed data format
+        GSI1PK: destination.featured
+          ? "DESTINATION#FEATURED"
+          : "DESTINATION#ALL",
+        GSI1SK: destination.slug,
         ...destination,
       },
     }),
@@ -74,12 +77,17 @@ export async function getDestinationBySlug(
   return result.Item as Destination;
 }
 
-export async function listDestinations(options: {
-  featured?: boolean;
-  limit?: number;
-  cursor?: string;
-} = {}): Promise<PaginatedResult<Destination>> {
+export async function listDestinations(
+  options: {
+    featured?: boolean;
+    limit?: number;
+    cursor?: string;
+  } = {},
+): Promise<PaginatedResult<Destination>> {
   const limit = Math.min(options.limit ?? 20, 50);
+
+  // FIXED: Use the correct GSI1PK values that match the seed data
+  const pkValue = options.featured ? "DESTINATION#FEATURED" : "DESTINATION#ALL";
 
   const result = await docClient.send(
     new QueryCommand({
@@ -87,7 +95,7 @@ export async function listDestinations(options: {
       IndexName: "GSI1",
       KeyConditionExpression: "GSI1PK = :pk",
       ExpressionAttributeValues: {
-        ":pk": options.featured ? "FEATURED_DEST" : "DESTINATION",
+        ":pk": pkValue,
       },
       Limit: limit,
       ExclusiveStartKey: decodeCursor(options.cursor),
@@ -100,7 +108,9 @@ export async function listDestinations(options: {
   };
 }
 
-export async function ensureDestinationExists(slug: string): Promise<Destination> {
+export async function ensureDestinationExists(
+  slug: string,
+): Promise<Destination> {
   const destination = await getDestinationBySlug(slug);
 
   if (!destination) {
