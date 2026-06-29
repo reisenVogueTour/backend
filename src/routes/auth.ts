@@ -1,33 +1,71 @@
-import { Router } from "express";
-import {
-  authenticate,
-  validateBody,
-  type AuthenticatedRequest,
-} from "../middleware";
-import { createUser, getUserByEmail, getUserById } from "../repositories/userRepository";
-import {
-  comparePassword,
-  hashPassword,
-  signToken,
-  toPublicUser,
-} from "../utils/auth";
-import { AppError } from "../utils/errors";
-import { loginSchema, registerSchema } from "../validators/schemas";
+// backend/src/routes/auth.ts
+import { Router } from 'express';
+import { authenticate, validateBody, type AuthenticatedRequest } from '../middleware';
+import { createUser, getUserByEmail, getUserById } from '../repositories/userRepository';
+import { createProvider } from '../repositories/providerRepository';
+import { comparePassword, hashPassword, signToken, toPublicUser } from '../utils/auth';
+import { AppError } from '../utils/errors';
+import { loginSchema, registerSchema } from '../validators/schemas';
 
 const router = Router();
 
-router.post("/register", validateBody(registerSchema), async (req, res, next) => {
+router.post('/register', validateBody(registerSchema), async (req, res, next) => {
   try {
-    const { email, password, firstName, lastName, phone, role } = req.body;
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      phone,
+      role,
+      // Provider-specific fields
+      businessName,
+      description,
+      location,
+      businessAddress,
+      companyEmail,
+      companyPhone,
+      cacNumber,
+      cacDocumentUrl,
+    } = req.body;
+
     const passwordHash = await hashPassword(password);
     const user = await createUser({
       email,
       passwordHash,
       firstName,
       lastName,
-      role,
+      role: role || 'customer',
       phone,
     });
+
+    // If user is registering as provider, create provider record
+    if (role === 'provider') {
+      // Validate that all required provider fields are present
+      if (
+        !businessName ||
+        !description ||
+        !location ||
+        !businessAddress ||
+        !companyEmail ||
+        !companyPhone ||
+        !cacNumber
+      ) {
+        throw new AppError(400, 'All provider fields are required');
+      }
+
+      await createProvider({
+        userId: user.userId,
+        businessName,
+        description,
+        location,
+        businessAddress,
+        companyEmail,
+        companyPhone,
+        cacNumber,
+        cacDocumentUrl,
+      });
+    }
 
     const token = signToken({
       userId: user.userId,
@@ -47,19 +85,19 @@ router.post("/register", validateBody(registerSchema), async (req, res, next) =>
   }
 });
 
-router.post("/login", validateBody(loginSchema), async (req, res, next) => {
+router.post('/login', validateBody(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await getUserByEmail(email);
 
     if (!user) {
-      throw new AppError(401, "Invalid email or password");
+      throw new AppError(401, 'Invalid email or password');
     }
 
     const valid = await comparePassword(password, user.passwordHash);
 
     if (!valid) {
-      throw new AppError(401, "Invalid email or password");
+      throw new AppError(401, 'Invalid email or password');
     }
 
     const token = signToken({
@@ -80,12 +118,12 @@ router.post("/login", validateBody(loginSchema), async (req, res, next) => {
   }
 });
 
-router.get("/me", authenticate, async (req: AuthenticatedRequest, res, next) => {
+router.get('/me', authenticate, async (req: AuthenticatedRequest, res, next) => {
   try {
     const user = await getUserById(req.user!.userId);
 
     if (!user) {
-      throw new AppError(404, "User not found");
+      throw new AppError(404, 'User not found');
     }
 
     res.json({
