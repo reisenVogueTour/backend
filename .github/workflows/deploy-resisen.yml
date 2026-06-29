@@ -1,0 +1,107 @@
+name: Deploy Resisen API to VPS
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+jobs:
+    verify:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: .
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build
+              run: npm run build
+
+            - name: Verify build
+              run: |
+                  if [ ! -d "dist" ]; then
+                    echo "Build failed - dist directory not found"
+                    exit 1
+                  fi
+                  echo "Build successful!"
+
+    deploy:
+        needs: verify
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Deploy to VPS
+              uses: appleboy/ssh-action@v1.0.0
+              with:
+                  host: ${{ secrets.VPS_HOST }}
+                  username: ${{ secrets.VPS_USERNAME }}
+                  key: ${{ secrets.VPS_SSH_KEY }}
+                  script: |
+                      set -euo pipefail
+                      APP_DIR="/var/www/resisen.ispeed.pro/current"
+                      cd "$APP_DIR"
+
+                      # Stash any local changes
+                      git stash push -u -m "deploy-stash" 2>/dev/null || true
+
+                      # Pull latest code
+                      git pull origin main
+
+                      # Check if dependencies changed
+                      if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -qE 'package(-lock)?\.json'; then
+                        echo "📦 Dependencies changed — running npm ci..."
+                        npm ci --omit=dev
+                      else
+                        echo "✅ package.json unchanged — skipping npm ci"
+                      fi
+
+                      # Build the project
+                      echo "🔨 Building TypeScript..."
+                      npm run build
+
+                      # Update environment file
+                      echo "📝 Updating environment variables..."
+                      echo "${{ secrets.ENV_FILE_RESISEN }}" > .env
+
+                      # Ensure directories exist
+                      mkdir -p uploads logs
+
+                      # Start or reload PM2
+                      echo "🚀 Deploying with PM2..."
+                      if pm2 describe resisen-api >/dev/null 2>&1; then
+                        pm2 startOrReload ecosystem.config.js --update-env
+                      else
+                        pm2 start ecosystem.config.js --update-env
+                      fi
+                      pm2 save
+
+                      # Show status
+                      pm2 status resisen-api
+
+            - name: Health check
+              uses: appleboy/ssh-action@v1.0.0
+              with:
+                  host: ${{ secrets.VPS_HOST }}
+                  username: ${{ secrets.VPS_USERNAME }}
+                  key: ${{ secrets.VPS_SSH_KEY }}
+                  script: |
+                      sleep 8
+                      HEALTH_URL="https://resisen.ispeed.pro/health"
+
+                      if curl -fsS "$HEALTH_URL" > /dev/null; then
+                        echo "Health check passed: $HEALTH_URL"
+                        echo "Resisen API deployed successfully!"
+                      else
+                        echo "Health check failed: $HEALTH_URL"
+                        echo "Last 40 lines of logs:"
+                        pm2 logs resisen-api --lines 40 --nostream
+                        exit 1
+                      fi

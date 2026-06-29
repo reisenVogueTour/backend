@@ -10,6 +10,7 @@
     "seed": "ts-node scripts/seed.ts",
     "seed:experiences": "ts-node scripts/seed-experiences.mts",
     "seed:destinations": "ts-node scripts/seed-destinations.ts",
+    "verify:swagger": "node scripts/verify-swagger.js",
     "test": "echo \"No tests configured yet\""
   },
   "keywords": [],
