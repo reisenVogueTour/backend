@@ -1442,6 +1442,8 @@ components:
           description: Snapshot of the experience title
         price:
           type: number
+        imageUrl:
+          type: string
         status:
           $ref: "#/components/schemas/CheckpointStatus"
         completedAt:
@@ -1547,6 +1549,9 @@ components:
               type: boolean
               default: false
               description: true = Start (in_progress); false = Save (not_started)
+            itineraryId:
+              type: string
+              format: uuid
 
     Destination:
       type: object

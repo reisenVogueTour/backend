@@ -104,6 +104,7 @@ router.post(
         durationValue,
         durationUnit,
         start,
+        itineraryId,
       } = req.body as {
         destinationSlug: string;
         prompt: string;
@@ -111,15 +112,16 @@ router.post(
         durationValue: number;
         durationUnit: DurationUnit;
         start: boolean;
+        itineraryId: string;
       };
 
       const destination = await ensureDestinationExists(destinationSlug);
-      const sequenced = await fetchPublishedExperiences(
+      const publishedExperiences = await fetchPublishedExperiences(
         experienceIds,
         destination.slug,
       );
 
-      if (sequenced.length === 0) {
+      if (publishedExperiences.length === 0) {
         throw new AppError(400, "No valid experiences to build an itinerary");
       }
 
@@ -130,7 +132,8 @@ router.post(
         prompt,
         durationValue,
         durationUnit,
-        sequenced,
+        sequenced: publishedExperiences,
+        itineraryId,
       });
 
       if (start) {

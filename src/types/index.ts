@@ -48,7 +48,7 @@ export interface Experience {
   numberOfDays: number;
   price: number;
   currency: string;
-  duration: string;
+  duration?: string;
   maxGroupSize: number;
   images: string[];
   featured: boolean;
@@ -147,6 +147,7 @@ export interface ItineraryCheckpoint {
   experienceId: string;
   title: string;
   price: number;
+  imageUrl: string;
   status: CheckpointStatus;
   completedAt?: string;
 }

@@ -29,6 +29,7 @@ export function buildItinerary(params: {
   durationValue: number;
   durationUnit: DurationUnit;
   sequenced: Experience[];
+  itineraryId?: string;
 }): Itinerary {
   const {
     userId,
@@ -38,6 +39,7 @@ export function buildItinerary(params: {
     durationValue,
     durationUnit,
     sequenced,
+    itineraryId = randomUUID(),
   } = params;
 
   const timestamp = nowIso();
@@ -50,6 +52,7 @@ export function buildItinerary(params: {
       experienceId: experience.experienceId,
       title: experience.title,
       price: experience.price,
+      imageUrl: experience.images[0] || "",
       status: "locked",
     }),
   );
@@ -60,7 +63,7 @@ export function buildItinerary(params: {
   );
 
   return {
-    itineraryId: randomUUID(),
+    itineraryId,
     userId,
     destination,
     destinationSlug,
