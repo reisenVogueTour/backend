@@ -1,5 +1,4 @@
 import { GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "crypto";
 import { docClient, tableName } from "../config/db";
 import type { Destination, PaginatedResult } from "../types";
 import { nowIso, slugify } from "../utils/auth";
@@ -77,6 +76,30 @@ export async function getDestinationBySlug(
   return result.Item as Destination;
 }
 
+async function queryDestinationPartition(
+  pkValue: string,
+  limit: number,
+  cursor?: string,
+): Promise<{
+  items: Destination[];
+  lastKey: Record<string, unknown> | undefined;
+}> {
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: "GSI1",
+      KeyConditionExpression: "GSI1PK = :pk",
+      ExpressionAttributeValues: { ":pk": pkValue },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(cursor),
+    }),
+  );
+  const lastKey = result.LastEvaluatedKey as
+    | Record<string, unknown>
+    | undefined;
+  return { items: (result.Items ?? []) as Destination[], lastKey };
+}
+
 export async function listDestinations(
   options: {
     featured?: boolean;
@@ -84,28 +107,27 @@ export async function listDestinations(
     cursor?: string;
   } = {},
 ): Promise<PaginatedResult<Destination>> {
-  const limit = Math.min(options.limit ?? 20, 50);
+  const limit = Math.min(options.limit ?? 50, 100);
 
-  // FIXED: Use the correct GSI1PK values that match the seed data
-  const pkValue = options.featured ? "DESTINATION#FEATURED" : "DESTINATION#ALL";
+  if (options.featured) {
+    const { items, lastKey } = await queryDestinationPartition(
+      "DESTINATION#FEATURED",
+      limit,
+      options.cursor,
+    );
+    return { items, nextCursor: encodeCursor(lastKey) };
+  }
 
-  const result = await docClient.send(
-    new QueryCommand({
-      TableName: tableName,
-      IndexName: "GSI1",
-      KeyConditionExpression: "GSI1PK = :pk",
-      ExpressionAttributeValues: {
-        ":pk": pkValue,
-      },
-      Limit: limit,
-      ExclusiveStartKey: decodeCursor(options.cursor),
-    }),
+  const [allResult, featuredResult] = await Promise.all([
+    queryDestinationPartition("DESTINATION#ALL", limit),
+    queryDestinationPartition("DESTINATION#FEATURED", limit),
+  ]);
+
+  const merged = [...allResult.items, ...featuredResult.items].sort((a, b) =>
+    a.slug.localeCompare(b.slug),
   );
 
-  return {
-    items: (result.Items ?? []) as Destination[],
-    nextCursor: encodeCursor(result.LastEvaluatedKey),
-  };
+  return { items: merged };
 }
 
 export async function ensureDestinationExists(
